@@ -1,212 +1,201 @@
 ############################    ROC-TOC test   #######################################
-################################  Yucatan case study: Hurricane damage  #######################################
+################################  Generation of ROC/TOC curve and maps  #######################################
 #This script processing examines the example maps for the ROC and TOC.
-#AUTHORS:                                            
-#DATE CREATED: 10/04/2014 
-#DATE MODIFIED: 10/05/2014
+#AUTHORS: Ali Santa Cruz                                           
+#DATE CREATED: 10/05/2014 
+#DATE MODIFIED: 01/17/2015
 #Version: 1
 #PROJECT: ROC and TOC
+#TO DO:
+#change resolution by disagregating by 10 and 100 to check how the code is doing
+#add random raster to test as well
+
 #################################################################################################
 
+#Installationg did not work....
+#git  clone https://github.com/amsantac/TOC.git
+library(devtools) 
+install_github("amsantac/TOC")
 ###Loading R library and packages                                                      
 
 library(sp)  #Spatial objects definition
-library(rgdal) #GDAL binding for R
 
 library(spdep) #Spatial objects functions for analyses
 library(rasterVis) #Raster visualization
 library(raster) #Raster objects definition and function for analyses
+library(rgdal) #GDAL binding for R
 
 library(rgeos) #GEOS binding for R
 library(gtools) #general additional tools
 library(maptools) #mapping tools
 library(colorRamps) #Palette/coloramp for display,contains matlab.like color palette
-library(lmtest) #Various useful tests.
+#Error: could not find function "as.bit"
+library(bit)
 
 ###### Functions used in this script
 
-#function_raster_processing <- "covariate_processing_Yucatan_functions_07202014.R"
+create_dir_fun <- function(out_dir,out_suffix){
+  #if out_suffix is not null then append out_suffix string
+  if(!is.null(out_suffix)){
+    out_name <- paste("output_",out_suffix,sep="")
+    out_dir <- file.path(out_dir,out_name)
+  }
+  #create if does not exists
+  if(!file.exists(out_dir)){
+    dir.create(out_dir)
+  }
+  return(out_dir)
+}
 
-script_path <- "C:/Users/parmentier/Dropbox/Data/TOC/My Run" #path to script
-#source(file.path(script_path,function_raster_processing)) #source all functions used in this script 1.
+load_obj <- function(f){
+  env <- new.env()
+  nm <- load(f, env)[1]
+  env[[nm]]
+}
+
+#setwd("D:/asantacruzdelgado/PhD/Fall 2014/RA/software/composite/toc")
+#source("Rscripts/TOC.R")
+#source("Rscripts/TOCplot.R")
+
+function_TOC_creation <- "TOC.R"
+#function_plot_TOC <- "TOCplot.R"
+function_plot_TOC <- "plot.TOC.R"
+#script_path <- "C:/Users/parmentier/Dropbox/Data/TOC/My Run" #path to script
+#script_path <- "C:/Users/parmentier/Dropbox/Data/TOC/tocR/Rscripts"
+script_path <- "/home/parmentier/Data/git_repo_projects/TOC"
+source(file.path(script_path,function_TOC_creation)) #source all functions used in this script 1.
+source(file.path(script_path,function_plot_TOC)) #source all functions used in this script 1.
+
 #Using source, reads the script containing the functions, loads functions in the workspace/enviroment
 #making them available for the user.
 
 #####  Parameters and argument set up ###########
 
+in_dir <- "/home/parmentier/Data/git_repo_projects/TOC/maps/"
+out_dir <- "/home/parmentier/Data/git_repo_projects/TOC/maps/" #output will be created in the input dir, set 
 
-in_dir <- "C:/Users/parmentier/Dropbox/Data/TOC/My Run"
-out_dir <- "C:/Users/parmentier/Dropbox/GeospatialPatternCourse/Module4/lab4/" #output will be created in the input dir, set 
+out_dir <- in_dir #output will be created in the input dir
+out_suffix_s <- "01192015" #can modify name of output suffix
+create_out_dir_param <- FALSE
 
-
-in_file <- file.path(in_dir,"Change_Map.asc")
-r_change <- raster(in_file)
-freq(r_change)
-levelplot(r_change,margin=F)
-
-TOC <- function(index, boolean, mask=NULL, nthres=NULL, thres=NULL, NAval=0, ranking=FALSE, 
-P=NA, Q=NA, uncertainty=TRUE) {
-
-if(!is.null(nthres) & !is.null(thres)) stop("Enter nthres OR thres as input, not both at the same time")
-
-if(is.null(mask)) 
-    mask <- boolean*0 + 1
-mask[mask == NAval] <- NA
-
-index <- index*mask
-boolean <- boolean*mask
-
-boolval <- getValues(boolean)
-indval <- getValues(index)
-
-ones.bool <- table(boolval)[[2]]
-zeros.bool <- table(boolval)[[1]]
-
-func_logical3   <- function(v1,v2){
-    r1  <- sum(v1 & v2)
-    r2  <- sum(v1 & !v2)
-    return(c(r1, r2))
+if(create_out_dir_param==TRUE){
+  out_dir <- create_dir_fun(out_dir,out_suffix_s)
+  setwd(out_dir)
+}else{
+  setwd(out_dir) #use previoulsy defined directory
 }
 
-if(!ranking){
-boolval <- boolval[!is.na(boolval)]
-indval <- indval[!is.na(indval)]
+################ BEGIN SCRIPT################
 
-if (length(boolval)!=length(indval)) stop('different NA values in input maps')
+###### READ IN RASTER DATASETS #######
 
-zeroIndVal <- indval*0
-maxInd <- max(indval, na.rm=TRUE)
+#index <- raster(system.file("external/p_built01_suitability_1.rst", package="TOC"))#these are raster objects...
+#boolean <- raster(system.file("external/BuiltGain1985_1999.rst", package="TOC"))
+#mask <- raster(system.file("external/1985NonBuilt01.rst", package="TOC"))
+# all unique values of the index map after applying the mask are used as thresholds (default option) 
+#tocd <- TOC(index, boolean, mask, NAval=0, uncertainty=TRUE)
+#tocd
 
-ifelse(!is.null(thres), minInd <- min(thres), minInd <- min(indval, na.rm=TRUE))
+r_index <- raster(file.path(in_dir,"p_built01_suitability_1.rst"))#, package="TOC"))#these are raster objects...
+#boolean <- raster(file.path(in_dir,"BuiltGain1985_1999.rst")) #don't have this file...
+r_boolean <- raster(file.path(in_dir,"1985-1999BuiltGain2.rst")) #this the reference map
+r_mask <- raster(file.path(in_dir,"1985NonBuilt01.rst"))#, package="TOC")) #mask raster
 
-ifelse(!is.null(nthres), newThres <- (maxInd - minInd)/(nthres-2)*(0:(nthres-2)) + minInd, ifelse(!is.null(thres), newThres <- thres, newThres <- unique(indval)))
-newThres <- sort(newThres, decreasing=TRUE)
+unique(r_index) #19 values
+r_stack <- stack(r_index,r_boolean,r_mask)
+names(r_stack) <- c("index","boolean","mask")
+plot(r_stack)
+r_stack_m <- mask(r_stack,r_mask)
 
-res <- cbind(newThres, "Hits"=0, "HitsRate"=0, "falseAlarms"=0, "falseAlarmsRate"=0)
+histogram(r_stack) #From rasterVis
+histogram(r_index)
+freq(r_index)
 
-for (j in 2:(nrow(res))){
-i <- newThres[j]
-zeroIndVal[which(indval > i)]  <- 1
+#### RUN THE TOC FUNCTIONS #######
 
-xb <- as.bit(zeroIndVal)
-yb <- as.bit(boolval)
-crsstb <- func_logical3(xb,yb)
+# all unique values of the index map after applying the mask are used as thresholds (default option) tocd <- TOC(index, boolean, mask, NAval=0, uncertainty=TRUE)
+debug(TOC) #degug function...
+#problem so line .134 changed
+#rerun
+tocd <- TOC(r_index, r_boolean, r_mask, NAval=0, uncertainty=TRUE)
 
-res[j,"Hits"] <- crsstb[1]
-res[j,"HitsRate"] <- crsstb[1]/ones.bool*100
-res[j,"falseAlarms"] <- crsstb[2]
-res[j,"falseAlarmsRate"] <- crsstb[2]/zeros.bool*100
-zeroIndVal <- indval*0
-}
-}
+class(tocd)
+names(tocd)
 
-if(ranking){
-srted.bool <- sort(boolval, index.return=TRUE, na.last=NA)
-srted.ind <- sort(indval, index.return=TRUE, na.last=NA)
+tocd$TOCtable #ok only 18 unique values...
+plot.TOC(tocd, labelThres=FALSE) #Figure? numbers are e+08...
 
-maxRank <- max(srted.ind$ix)
-minRank <- min(srted.ind$ix)
-srted.ind$indexRank <- 1:maxRank
+write.table(tocd$TOCtable,paste("TOC_table_",out_suffix_s,sep=""))
 
-mrg.ir <- merge(srted.bool, srted.ind, by.x="ix", by.y="ix")
-mrg.ir$thresB <- 0
+#### now create a random image
 
-indval <- indval[!is.na(indval)]
-minInd <- min(indval, na.rm=TRUE)
+r_index
+r_test <- aggregate(r_index,fact=10)
+r_test2 <- r_test
+setValues(r_test2)<- rnorm(ncell(r_test2))
+  
+############### END OF SCRIPT ###################
 
-newThres <- maxRank/nthres*(1:nthres)
-newThres <- sort(newThres, decreasing=TRUE)
 
-res <- cbind(newThres, "Hits"=0, "HitsRate"=0, "falseAlarms"=0, "falseAlarmsRate"=0)
+#commenting out previous code test from 10-14-2014
+# ## Quick plot of Amin's data:
+# 
+# in_file_change <- file.path(in_dir,"Change_Map.asc")
+# r_change <- raster(in_file_change)
+# freq(r_change)
+# dim(r_change) #1691x1351 image, missing ref projection
+# levelplot(r_change,margin=F) #requires rasterVis
+# 
+# in_file_index <- file.path(in_dir,"Prob_Map.asc")
+# r_index <- raster(in_file_index)
+# 
+# levelplot(r_index,margin=F)
+# levelplot(stack(r_change,r_index),margin=F)
+# 
+# ### This is from Ali's
+# ## AMIN DATA: 
+# 
+# input <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/Prob_Map2.rst")
+# ref <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/Change_Map2b.rst")
+# mask <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/MASK3.rst")
+# 
+# system.time(tocd <- TOC(input, ref, mask, nthres=100, NAvalue=0)) #right this is rather slow
+# #tocd is a data.frame
+# 
+# #ncol(ref)*nrow(ref)
+# freq(ref)#,value=NA)
+# #value   count
+# #[1,]     0 1222042 #0 not read in as NAval!
+# #[2,]     1  362200
+# #[3,]     2  700299
+# 
+# ncells <- 1270089 #what is this number? is that the number of valid pixels, ok
+# cellSize <- 1000
+# population <- (ncells * cellSize^2)/1000^2
+# 
+# tocd1 <- TOCplot(tocd$truePositive, tocd$truePosRate, tocd$falsePositive, tocd$falsePosRate, population)
+# #nice plot Ali!
+# 
+# ## PIE DATA
+# 
+# input <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/p_built01_suitability_1.rst")
+# ref <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/1985-1999BuiltGain2.rst")
+# mask <- raster("C:/Users/parmentier/Dropbox/Data/TOC/tocR/maps/1985NonBuilt01.rst")
+# 
+# #check dimension and visualize quickly data
+# #dim(ref)
+# levelplot(ref,margin=F) #MA PIE data ok!
+# levelplot(input,margin=F)
+# 
+# system.time(tocd <- TOC(input, ref, mask, nthres=100, NAvalue=0))
+# dim(mask)
+# ncell(mask) #?
+# freq(mask)
+# ncells <- 1260141 # waht is this number?
+# cellSize <- 30 #cellSize<-res(mask)
+# population <- (ncells * cellSize^2)/1000^2
+# tocd1 <- TOCplot(tocd$truePositive, tocd$truePosRate, tocd$falsePositive, tocd$falsePosRate, population)
+# 
+# #Add quick map generation saved in png?
 
-for (j in 2:(nrow(res))){
-i <- newThres[j]
-mrg.ir[which(mrg.ir$indexRank > i), "thresB"]  <- 1
-
-xb <- as.bit(mrg.ir$thresB)
-yb <- as.bit(mrg.ir$x.x)
-crsstb <- func_logical3(xb,yb)
-
-res[j,"Hits"] <- crsstb[1]
-res[j,"HitsRate"] <- crsstb[1]/ones.bool*100
-res[j,"falseAlarms"] <- crsstb[2]
-res[j,"falseAlarmsRate"] <- crsstb[2]/zeros.bool*100
-mrg.ir$thresB <- 0
-}
-}
-
-tocd <- as.data.frame(rbind(res, c(NA, ones.bool, 100, zeros.bool, 100)))
-#res <- rbind(res, c(0, ones.bool, 100, zeros.bool, 100))
-#return(as.data.frame(res))
-
-names(tocd) <- c("Threshold", "A", "HitsRate", "B", "falseAlarmsRate")
-
-validPixels <- ones.bool + zeros.bool
-
-population <- validPixels * res(index)[1] * res(index)[2]
-if(!is.na(P) & !is.na(Q)){
-population <- P + Q
-}
-
-tocd$Model1 <- tocd$HitsRate/100
-tocd$falseAlarms1 <- tocd$falseAlarmsRate/100
-tocd$Uniform <- tocd$falseAlarms1
-maxA <- tocd$A[nrow(tocd)]
-maxB <- tocd$B[nrow(tocd)]
-tocd$m <- (maxA - tocd$A)/(maxA + maxB) 
-tocd$h <- tocd$A/(maxA + maxB)
-tocd$f <- tocd$B/(maxA + maxB) 
-tocd$c <- 1 - tocd$m - tocd$h -tocd$f
-prevalence <- tocd$h[nrow(tocd)]
-
-tocd$Hits <- tocd$Model1 * prevalence * population
-tocd$hitsFalseAlarms <- tocd$Hits + tocd$falseAlarms1*(1-prevalence)*population
-tocd$hitsMisses <- prevalence*population
-tocd$maximum <- pmin(tocd$hitsMisses, tocd$hitsFalseAlarms)
-tocd$minimum <- pmax(0, tocd$hitsFalseAlarms + tocd$hitsMisses - population)
-tocd$Uniform1 <- tocd$hitsMisses * tocd$hitsFalseAlarms / population
-
-tocd1 <- tocd
-tocd1[nrow(tocd1), "Threshold"] <- paste("<= ", minInd)
-
-tocd2 <- tocd1[, c("Threshold", "hitsFalseAlarms", "Hits")]
-
-if(!is.na(P) & !is.na(Q)){
-tocd1$hitsFalseAlarmsP <- P * tocd1$Model1 + Q * tocd1$falseAlarms1
-tocd1$HitsP <- P * tocd1$Model1
-tocd2 <- tocd1[, c("Threshold", "hitsFalseAlarms", "Hits", "hitsFalseAlarmsP", "HitsP")]
-}
-
-units <- strsplit(strsplit(CRSargs(crs(index)), "+units=")[[1]][2], " ")[[1]][1]
-
-id <- order(tocd2$hitsFalseAlarms)
-totalAUC <- sum(tocd2$Hits[-length(tocd2$Hits)] * diff(tocd2$hitsFalseAlarms)) + sum(diff(tocd2$hitsFalseAlarms[id])*diff(tocd2$Hits[id]))/2 - ((prevalence * population)^2)/2 
-AUC <- totalAUC/(population * prevalence * population - (prevalence * population)^2)
-
-colnames(tocd2)[2] <- "Hits+FalseAlarms"
-if (any(colnames(tocd2) == "hitsFalseAlarmsP")) colnames(tocd2)[4] <- "Hits+FalseAlarmsP"
-
-if(!uncertainty) return(list(TOCtable=tocd2, AUC=AUC, units=units, prevalence=prevalence*population, population=population))
-else
-{
-thist <- hist(unique(index), breaks=c(sort(tocd$Threshold)), plot=FALSE)
-tocd$counts <- c(0, thist$counts[length(thist$counts):1], 0)
-
-uncertain <- 0
-for (i in 2:(nrow(tocd)-2)){
-if(tocd[i,"counts"] > 1) {
-area <- (tocd[i,"falseAlarms1"] - tocd[i-1,"falseAlarms1"])*(tocd[i,"Model1"] - tocd[i-1,"Model1"])
-uncertain <- uncertain + area
-}
-}
-
-i <- i+1
-if(tocd[i,"counts"] > 2) {
-area <- (tocd[i,"falseAlarms1"] - tocd[i-1,"falseAlarms1"])*(tocd[i,"Model1"] - tocd[i-1,"Model1"])
-uncertain <- uncertain + area
-}
-
-return(list(TOCtable=tocd2, AUC=AUC, units=units, prevalence=prevalence*population, population=population, maxAUC = AUC + uncertain/2, minAUC = AUC - uncertain/2))
-}
-
-}
+##### End of script ####
